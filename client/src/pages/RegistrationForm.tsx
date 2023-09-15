@@ -1,4 +1,5 @@
 import {useState} from "react";
+import axios from 'axios';
 
 export const RegistrationForm = () => {
     // State to manage form input values
@@ -68,7 +69,7 @@ export const RegistrationForm = () => {
     };
 
     // Function to handle form submission
-    const handleSubmit = (e: any) => {
+    const handleSubmit = async (e: any) => {
         e.preventDefault();
 
         // Validate form inputs
@@ -115,24 +116,36 @@ export const RegistrationForm = () => {
         // Check if there are any validation errors
         if (Object.keys(validationErrors).length > 0) {
             setErrors(validationErrors);
-        } else {
-            // If no errors, submit the form data to the server or perform further actions
-            // You can make an API request here to register the user
-            // Reset form data and errors after successful submission
-            alert('Form submitted successfully!');
-            setFormData({
-                username: '',
-                email: '',
-                password: '',
-                confirmPassword: '',
-            });
-            setErrors({
-                usernameError: '',
-                emailError: '',
-                passwordError: '',
-                confirmPasswordError: '',
-            });
+            return
         }
+
+        // If no errors, submit the form data to the server or perform further actions
+        // You can make an API request here to register the user
+        // Reset form data and errors after successful submission
+        // If no validation errors, send a POST request to your backend
+        const response = await axios.post('http://localhost:3200/api/register', formData);
+
+        // Handle the response from your server
+        if (response.status === 201) {
+            // Registration successful
+            alert('User registered successfully!');
+        } else {
+            // Handle other responses, e.g., display error messages
+            alert('Registration failed. Please try again.');
+        }
+
+        setFormData({
+            username: '',
+            email: '',
+            password: '',
+            confirmPassword: '',
+        });
+        setErrors({
+            usernameError: '',
+            emailError: '',
+            passwordError: '',
+            confirmPasswordError: '',
+        });
     };
 
     return (
