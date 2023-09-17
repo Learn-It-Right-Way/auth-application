@@ -1,10 +1,26 @@
 import bcrypt from 'bcrypt';
 import { PrismaClient } from '@prisma/client';
+import nodemailer from 'nodemailer';
 
 const prisma = new PrismaClient();
 export class UserController {
     async registerUser(req: any, res: any) {
         try {
+            // Configuration for sending emails
+            const emailTransporter = nodemailer.createTransport({
+                service: 'Gmail', // e.g., 'Gmail', 'Yahoo', etc.
+                auth: {
+                    user: process.env.EMAIL,
+                    pass: process.env.PASSWORD,
+                },
+            });
+
+            // Generate a random confirmation token
+            const confirmationToken = Math.random().toString(36).substring(2);
+            // Set the confirmation link expiry (e.g., 48 hours from now)
+            const confirmationExpiry = new Date();
+            confirmationExpiry.setHours(confirmationExpiry.getHours() + 48); // Adjust the duration as needed
+
             const { username, email, password } = req.body;
 
             // Check if the user already exists (usually done with a database query)
@@ -32,7 +48,28 @@ export class UserController {
                 data: {
                     username,
                     email,
-                    password: hashedPassword
+                    password: hashedPassword,
+                    confirmationToken,
+                    confirmationExpiry
+                }
+            });
+
+            // Send a confirmation email to the user
+            const confirmationLink = `${process.env.WEB_URL}/confirm/${confirmationToken}`;
+            const mailOptions = {
+                from: process.env.EMAIL,
+                to: email,
+                subject: 'Confirm Your Email',
+                html: `Click <a href="${confirmationLink}">here</a> to confirm your email.`,
+            };
+
+            emailTransporter.sendMail(mailOptions, (error, info) => {
+                if (error) {
+                    console.error(error);
+                    return res.status(500).json({ error: 'Email sending failed' });
+                } else {
+                    console.log('Email sent: ' + info.response);
+                    res.status(201).json({ message: 'User registered successfully. Check your email for confirmation.' });
                 }
             });
 
