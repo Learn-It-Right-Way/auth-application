@@ -55,7 +55,7 @@ export class UserController {
             });
 
             // Send a confirmation email to the user
-            const confirmationLink = `${process.env.WEB_URL}/confirm/${confirmationToken}`;
+            const confirmationLink = `${process.env.SERVER_URL}/confirm/${confirmationToken}`;
             const mailOptions = {
                 from: process.env.EMAIL,
                 to: email,
@@ -78,5 +78,55 @@ export class UserController {
             console.error(error);
             res.status(500).json({ error: 'Internal server error' });
         }
+    }
+
+    async confirm(req: any, res: any) {
+        const token = req.params.token; // Extract the token from the URL
+        console.log("===token===", token);
+        // Look up the user by confirmation token in the database
+        const user = await prisma.user.findFirst({
+            where: {
+                confirmationToken: token,
+            },
+        });
+
+        if (!user) {
+            return res.status(404).json({ error: 'Confirmation token not found or has been used' });
+        }
+
+        if (user.isConfirmed) {
+            return res.status(400).json({ error: 'Email is already confirmed' });
+        }
+
+        // Check if the confirmation token has expired
+        const currentTimestamp = new Date();
+        if (user.confirmationExpiry && currentTimestamp > user.confirmationExpiry) {
+            return res.status(400).json({ error: 'Confirmation token has expired' });
+        }
+
+        // Check if another user with the same email is already confirmed
+        const userWithSameEmail = await prisma.user.findFirst({
+            where: {
+                email: user.email,
+                isConfirmed: true,
+            },
+        });
+
+        if (userWithSameEmail) {
+            return res.status(400).json({ error: 'Another user with the same email is already confirmed' });
+        }
+
+        // Mark the token as used
+        await prisma.user.update({
+            where: {
+                id: user.id,
+            },
+            data: {
+                isConfirmed: true,
+                confirmationToken: null, // Optionally, clear the token to prevent further use
+            },
+        });
+
+        res.status(200).json({ message: 'Email confirmed successfully' });
     }
 }
