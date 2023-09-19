@@ -2,8 +2,10 @@ import { useState } from 'react';
 import axios from "axios";
 import {useNavigate } from "react-router-dom";
 import xss from 'xss';
+import {useAuth} from "../context";
 
 export const LoginForm = () => {
+    const { setUser, setIsAuthenticated } = useAuth();
     const [formData, setFormData] = useState({
         email: '',
         password: '',
@@ -61,14 +63,17 @@ export const LoginForm = () => {
 
         try {
             // Send a POST request to your backend for authentication
-            const response = await axios.post('http://localhost:3200/api/login', formData);
+            const response = await axios.post('/api/login', formData);
 
             if (response.status === 200) {
+                setUser(response.data.user);
+                setIsAuthenticated(response.data.isAuthenticated);
                 // Redirect to the protected route upon successful login
                 navigate('/');
             } else {
                 // Handle authentication error
                 // You can display an error message to the user here
+                alert("==login failed==");
             }
         } catch (error) {
             console.error('Login error:', error);

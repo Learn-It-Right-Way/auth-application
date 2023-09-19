@@ -1,5 +1,8 @@
+import {useAuth} from "../context";
+
 export const DashboardPage = () => {
+    const { user } = useAuth();
     return (
-        <>DashboardPage</>
+        <>DashboardPage {user.email}</>
     );
 };

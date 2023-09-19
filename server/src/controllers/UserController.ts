@@ -1,6 +1,8 @@
 import bcrypt from 'bcrypt';
 import { PrismaClient } from '@prisma/client';
 import nodemailer from 'nodemailer';
+import jwt from 'jsonwebtoken';
+import { v4 as uuidv4 } from 'uuid';
 
 const prisma = new PrismaClient();
 export class UserController {
@@ -46,6 +48,7 @@ export class UserController {
             // Insert a new user into the database
             const newUser = await prisma.user.create({
                 data: {
+                    uuid: uuidv4(),
                     username,
                     email,
                     password: hashedPassword,
@@ -128,5 +131,88 @@ export class UserController {
         });
 
         res.status(200).json({ message: 'Email confirmed successfully' });
+    }
+
+    async login(req: any, res: any) {
+        try {
+            const { email, password } = req.body;
+
+            // Find the user by email (you can also use username)
+            const user = await prisma.user.findUnique({
+                where: {
+                    email,
+                },
+            });
+
+            if (!user) {
+                return res.status(401).json({ error: 'Invalid credentials' });
+            }
+
+            // Verify the password
+            const passwordMatch = await bcrypt.compare(password, user.password);
+
+            if (!passwordMatch) {
+                return res.status(401).json({ error: 'Invalid credentials' });
+            }
+
+            // If credentials are valid, generate a JWT token
+            const token = jwt.sign(
+                {
+                    userId: user.uuid, // Include user-specific data in the token's payload (optional)
+                },
+                process.env.SECRET_KEY as string, // Replace with your secret key for token signing
+                {
+                    expiresIn: '1h', // Set the expiration time for the token (optional)
+                }
+            );
+
+            // Set the JWT token in an HTTP-only cookie
+            res.cookie('jwtToken', token, {
+                httpOnly: true,
+                secure: true, // Set to true for HTTPS
+                maxAge: 3600000, // 1 hour (adjust as needed)
+                sameSite: 'strict', // Enforce same-site policy for added security
+            });
+
+            // Send a success response without the token in the body
+            res.status(200).json({ isAuthenticated: true, user: { id: user.uuid, username: user.username, email: user.email } });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ error: 'Internal server error' });
+        }
+    }
+
+    async checkAuth(req: any, res: any) {
+        const token = req.cookies.jwtToken; // Get the JWT token from the HTTP-only cookie
+
+        try {
+            if (!token) {
+                return res.status(401).json({ isAuthenticated: false });
+            }
+
+            // Verify and decode the token using your secret key
+            const decodedToken: any = jwt.verify(token, process.env.SECRET_KEY as string);
+
+            // If verification is successful, you can access the user's data from the token payload
+            const userUuid = decodedToken.userId; // Replace with the appropriate key used in your token payload
+
+            // You can also perform additional checks or database queries to retrieve user details if needed
+            // Find the user by email (you can also use username)
+            const user = await prisma.user.findUnique({
+                where: {
+                    uuid: userUuid,
+                },
+            });
+
+            if (!user) {
+                // Send the user's details in the response
+                return res.status(401).json({ error: 'Unauthenticated. Please Login again' });
+            }
+
+            res.json({ isAuthenticated: true, user: { id: user.uuid, username: user.username, email: user.email } });
+        } catch (error) {
+            console.error('Authentication check failed:', error);
+            res.status(401).json({ isAuthenticated: false });
+        }
     }
 }
